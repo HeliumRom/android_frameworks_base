@@ -45,7 +45,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_MODULE:= libandroidfw
 LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS += -DSTATIC_ANDROIDFW_FOR_TOOLS
-LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
+LOCAL_CFLAGS += -Wunused -Wunreachable-code
 LOCAL_SRC_FILES:= $(hostSources)
 LOCAL_C_INCLUDES := external/zlib
 
@@ -72,7 +72,7 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libz
 
-LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
+LOCAL_CFLAGS += -Wunused -Wunreachable-code
 
 include $(BUILD_SHARED_LIBRARY)
 
