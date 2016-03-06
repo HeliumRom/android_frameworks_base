@@ -58,13 +58,19 @@ public class PlatLogoActivity extends Activity {
     int mKeyCount;
     PathInterpolator mInterpolator = new PathInterpolator(0f, 0f, 0.5f, 1f);
 
+<<<<<<< HEAD
     private boolean mIsCM;
 
+=======
+>>>>>>> parent of 5b7d9a0... We're SudaMod:use our own platlogo(1/2)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+<<<<<<< HEAD
         mIsCM = getIntent().hasExtra("is_cm");
+=======
+>>>>>>> parent of 5b7d9a0... We're SudaMod:use our own platlogo(1/2)
         mLayout = new FrameLayout(this);
         setContentView(mLayout);
     }
@@ -207,10 +213,14 @@ public class PlatLogoActivity extends Activity {
     }
 
     public void showMarshmallow(View im) {
+<<<<<<< HEAD
 
         final Drawable fg = getDrawable(mIsCM
                 ? com.android.internal.R.drawable.platlogo_cm
                 : com.android.internal.R.drawable.platlogo);
+=======
+        final Drawable fg = getDrawable(com.android.internal.R.drawable.platlogo);
+>>>>>>> parent of 5b7d9a0... We're SudaMod:use our own platlogo(1/2)
         fg.setBounds(0, 0, im.getWidth(), im.getHeight());
         fg.setAlpha(0);
         im.getOverlay().add(fg);
