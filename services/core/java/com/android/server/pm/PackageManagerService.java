@@ -6427,26 +6427,10 @@ public class PackageManagerService extends IPackageManager.Stub {
         if (DEBUG_DEXOPT) {
             Log.i(TAG, "Optimizing app " + curr + " of " + total + ": " + pkg.packageName);
         }
-<<<<<<< HEAD
-
-        ApplicationInfo ai;
-        try {
-            try {
-                ai = mContext.getPackageManager().getApplicationInfo(pkg.packageName, 0);
-            } catch (Exception e) {
-                ai = null;
-            }
-            final String bootMsg = mContext.getResources().getString(R.string.android_upgrading_apk,
-                                curr, total) + "\n(" + ((String) (ai != null ? mContext.getPackageManager().getApplicationLabel(ai) :
-            pkg.packageName)) + ')';
-
-            ActivityManagerNative.getDefault().showBootMessage(bootMsg, true);
-=======
         try {
             ActivityManagerNative.getDefault().showBootMessage(
                     mContext.getResources().getString(R.string.android_upgrading_apk,
                             curr, total), true);
->>>>>>> parent of 6427779... improve update_view
         } catch (RemoteException e) {
         }
         PackageParser.Package p = pkg;

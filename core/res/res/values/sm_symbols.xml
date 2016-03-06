@@ -16,7 +16,6 @@
 
 <resources>
 
-<<<<<<< HEAD
   <!-- Exact Time -->
   <java-symbol type="string" name="lc" />
   <java-symbol type="string" name="lm" />
@@ -27,14 +26,4 @@
   <java-symbol type="string" name="bw" />
   <java-symbol type="string" name="sy" />
 
-  <!-- SudaModDialog -->
-  <java-symbol type="layout" name="sm_dlg" />
-  <java-symbol type="id" name="sm_dlg_title" />
-  <java-symbol type="id" name="sm_color_layout" />
-  <java-symbol type="string" name="android_installing_apk_complete" />
-
-=======
-  <!-- Sm platlogo -->
-  <java-symbol type="drawable" name="sm_platlogo" />
->>>>>>> parent of 6427779... improve update_view
 </resources>
