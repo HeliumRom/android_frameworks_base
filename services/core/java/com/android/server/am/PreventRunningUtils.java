@@ -55,6 +55,9 @@ public class PreventRunningUtils {
 
     public static ComponentName clearSenderInStartService(ComponentName res) {
         mPreventRunning.setSender(null);
+        if (res != null && res.getPackageName().startsWith("!")) {
+            return null;
+        }
         return res;
     }
 
@@ -130,4 +133,3 @@ public class PreventRunningUtils {
     public static boolean isDep(ArraySet<String> pkgDeps) {
         return false;
     }
-}
