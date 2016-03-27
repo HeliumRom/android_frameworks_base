@@ -1540,6 +1540,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 break;
             case KEY_ACTION_LAST_APP:
                 ActionUtils.switchToLastApp(mContext, mCurrentUserId);
+                break;
             case KEY_ACTION_SCREENSHOT:
                 mHandler.postDelayed(mScreenshotRunnable, getScreenshotChordLongPressDelay());
                 break;
