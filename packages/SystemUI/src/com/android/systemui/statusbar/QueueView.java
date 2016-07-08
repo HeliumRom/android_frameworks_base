@@ -62,7 +62,7 @@ public class QueueView extends LinearLayout implements
         public void onPlaybackStateChanged(@NonNull PlaybackState state) {
             super.onPlaybackStateChanged(state);
 
-            if (updateQueue(mController.getQueue())) {
+            if (getParent() != null && updateQueue(mController.getQueue())) {
                 getParent().requestLayout();
             }
         }
@@ -213,7 +213,7 @@ public class QueueView extends LinearLayout implements
 
             // add everything
             if (!foundNowPlaying) {
-                for(int i = 0; i < getMaxQueueRowCount(); i++) {
+                for(int i = 0; i < getMaxQueueRowCount() && i < queue.size(); i++) {
                     mQueue.add(queue.get(i));
                 }
             }

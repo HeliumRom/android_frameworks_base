@@ -21,7 +21,7 @@ public class PreventRunning implements PreventRunningHook {
 
     private static final String TAG = "Prevent";
 
-    private static final int VERSION = 20160226;
+    private static final int VERSION = 20160406;
 
     private PreventRunningHook mPreventRunning;
 

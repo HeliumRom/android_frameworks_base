@@ -338,7 +338,7 @@ final class Settings {
     // Packages that have been uninstalled and still need their external
     // storage data deleted.
     final ArrayList<PackageCleanItem> mPackagesToBeCleaned = new ArrayList<PackageCleanItem>();
-    
+
     // Packages that have been renamed since they were first installed.
     // Keys are the new names of the packages, values are the original
     // names.  The packages appear everwhere else under their original
@@ -2459,11 +2459,16 @@ final class Settings {
     private void readPrebundledPackagesForUserFromFileLPr(int userId, File file) {
         BufferedReader reader = null;
         try {
+            HashSet<String> ppkg = mPrebundledPackages.get(userId);
+            if (ppkg == null) {
+                Slog.e(PackageManagerService.TAG, "Unable to get packages for user " + userId);
+                return;
+            }
             reader = new BufferedReader(new FileReader(file));
             String packageName = reader.readLine();
             while (packageName != null) {
                 if (!TextUtils.isEmpty(packageName)) {
-                    mPrebundledPackages.get(userId).add(packageName);
+                    ppkg.add(packageName);
                 }
                 packageName = reader.readLine();
             }
@@ -2519,7 +2524,7 @@ final class Settings {
         return mPrebundledPackages.get(userId).contains(packageName);
     }
 
-    boolean shouldPrebundledPackageBeInstalled(Resources res, String packageName,
+    boolean shouldPrebundledPackageBeInstalledForRegion(Resources res, String packageName,
                                             Resources configuredResources) {
         // Default fallback on lack of bad package
         if (TextUtils.isEmpty(packageName)) {
@@ -2550,6 +2555,37 @@ final class Settings {
         prebundledArray = resources
                 .getStringArray(R.array.config_restrict_to_region_locked_devices);
         return !ArrayUtils.contains(prebundledArray, packageName);
+    }
+
+    boolean shouldPrebundledPackageBeInstalledForUserLPr(PackageSetting existingSettings,
+            int userIdentifier, String packageName) {
+
+        // Check if package installed for the user
+        final boolean isInstalledForUser = (existingSettings != null
+                && existingSettings.getInstalled(userIdentifier));
+
+        // Check if package installed for the owner
+        final boolean isInstalledForOwner = (existingSettings != null
+                && existingSettings.getInstalled(UserHandle.USER_OWNER));
+
+        // Check if the user is the owner
+        final boolean isOwner = userIdentifier == UserHandle.USER_OWNER;
+
+        // If the given user is not the owner, and the prebundle was installed for the owner
+        // but is no longer installed, and isn't currently installed for the user,
+        // skip installing it.
+        if (!isOwner && wasPrebundledPackageInstalledLPr(UserHandle.USER_OWNER, packageName)
+                && !isInstalledForOwner && !isInstalledForUser) {
+            return false;
+        }
+
+        // If the given package was installed for the user and isn't currently, skip reinstalling it
+        if (wasPrebundledPackageInstalledLPr(userIdentifier, packageName) &&
+                !isInstalledForUser) {
+            return false;
+        }
+
+        return true;
     }
 
     void writeDisabledSysPackageLPr(XmlSerializer serializer, final PackageSetting pkg)
@@ -3751,7 +3787,7 @@ final class Settings {
                 }
 
                 String tagName = parser.getName();
-                // Legacy 
+                // Legacy
                 if (tagName.equals(TAG_DISABLED_COMPONENTS)) {
                     readDisabledComponentsLPw(packageSetting, parser, 0);
                 } else if (tagName.equals(TAG_ENABLED_COMPONENTS)) {
@@ -4029,7 +4065,7 @@ final class Settings {
     private String compToString(ArraySet<String> cmp) {
         return cmp != null ? Arrays.toString(cmp.toArray()) : "[]";
     }
- 
+
     boolean isEnabledLPr(ComponentInfo componentInfo, int flags, int userId) {
         if ((flags&PackageManager.GET_DISABLED_COMPONENTS) != 0) {
             return true;

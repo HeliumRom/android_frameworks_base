@@ -22,6 +22,7 @@ import android.app.ActivityManagerInternal.SleepToken;
 import android.app.ActivityManagerNative;
 import android.app.AppOpsManager;
 import android.app.IUiModeManager;
+import android.app.KeyguardManager;
 import android.app.ProgressDialog;
 import android.app.SearchManager;
 import android.app.StatusBarManager;
@@ -152,6 +153,7 @@ import static android.view.WindowManagerPolicy.WindowManagerFuncs.LID_CLOSED;
 import static android.view.WindowManagerPolicy.WindowManagerFuncs.CAMERA_LENS_COVER_ABSENT;
 import static android.view.WindowManagerPolicy.WindowManagerFuncs.CAMERA_LENS_UNCOVERED;
 import static android.view.WindowManagerPolicy.WindowManagerFuncs.CAMERA_LENS_COVERED;
+import static org.cyanogenmod.platform.internal.Manifest.permission.THIRD_PARTY_KEYGUARD;
 
 /**
  * WindowManagerPolicy implementation for the Android phone UI.  This
@@ -274,6 +276,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // The panic gesture may become active only after the keyguard is dismissed and the immersive
     // app shows again. If that doesn't happen for 30s we drop the gesture.
     private static final long PANIC_GESTURE_EXPIRATION = 30000;
+
+    private static final String DEPRECATED_THIRD_PARTY_KEYGUARD_PERMISSION =
+            "android.permission.THIRD_PARTY_KEYGUARD";
 
     /**
      * Keyguard stuff
@@ -751,6 +756,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private boolean mClearedBecauseOfForceShow;
     private boolean mTopWindowIsKeyguard;
     private CMHardwareManager mCMHardware;
+    private boolean mShowKeyguardOnLeftSwipe;
 
     private class PolicyHandler extends Handler {
         @Override
@@ -894,8 +900,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             resolver.registerContentObserver(Settings.System.getUriFor(
                     Settings.System.ACCELEROMETER_ROTATION_ANGLES), false, this,
                     UserHandle.USER_ALL);
-            resolver.registerContentObserver(CMSettings.Secure.getUriFor(
-                    CMSettings.Secure.DEV_FORCE_SHOW_NAVBAR), false, this,
+            resolver.registerContentObserver(CMSettings.Global.getUriFor(
+                    CMSettings.Global.DEV_FORCE_SHOW_NAVBAR), false, this,
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(CMSettings.System.getUriFor(
                     CMSettings.System.VOLBTN_MUSIC_CONTROLS), false, this,
@@ -1436,8 +1442,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     boolean isUserSetupComplete() {
-        return Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                Settings.Secure.USER_SETUP_COMPLETE, 0, UserHandle.USER_CURRENT) != 0;
+        return CMSettings.Secure.getIntForUser(mContext.getContentResolver(),
+                CMSettings.Secure.CM_SETUP_WIZARD_COMPLETED, 0, UserHandle.USER_CURRENT) != 0;
     }
 
     private void handleShortPressOnHome() {
@@ -1765,6 +1771,16 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         if (mNavigationBar != null && !mNavigationBarOnBottom &&
                                 mNavigationBarLeftInLandscape) {
                             requestTransientBars(mNavigationBar);
+                        }
+                        boolean focusedWindowIsExternalKeyguard = false;
+                        if (mFocusedWindow != null) {
+                            focusedWindowIsExternalKeyguard = (mFocusedWindow.getAttrs().type
+                                    & WindowManager.LayoutParams.TYPE_KEYGUARD_PANEL) != 0;
+                        }
+                        if (mShowKeyguardOnLeftSwipe && isKeyguardShowingOrOccluded()
+                                && focusedWindowIsExternalKeyguard) {
+                            // Show keyguard
+                            mKeyguardDelegate.showKeyguard();
                         }
                     }
                     @Override
@@ -2130,8 +2146,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 updateWakeGestureListenerLp();
             }
 
-            boolean devForceNavbar = CMSettings.Secure.getIntForUser(resolver,
-                    CMSettings.Secure.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
+            boolean devForceNavbar = CMSettings.Global.getIntForUser(resolver,
+                    CMSettings.Global.DEV_FORCE_SHOW_NAVBAR, 0, UserHandle.USER_CURRENT) == 1;
             if (devForceNavbar != mDevForceNavbar) {
                 mDevForceNavbar = devForceNavbar;
                 if (mCMHardware.isSupported(CMHardwareManager.FEATURE_KEY_DISABLE)) {
@@ -2307,8 +2323,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 outAppOp[0] = AppOpsManager.OP_SYSTEM_ALERT_WINDOW;
                 break;
             case TYPE_KEYGUARD_PANEL:
-                permission =
-                        org.cyanogenmod.platform.internal.Manifest.permission.THIRD_PARTY_KEYGUARD;
+                permission = THIRD_PARTY_KEYGUARD;
                 break;
             default:
                 permission = android.Manifest.permission.INTERNAL_SYSTEM_WINDOW;
@@ -2343,6 +2358,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                             return WindowManagerGlobal.ADD_OKAY;
                         }
                 }
+            } else if (permission == THIRD_PARTY_KEYGUARD) {
+                // check if caller has the old permission and if so allow adding window
+                if (mContext.checkCallingOrSelfPermission(
+                        DEPRECATED_THIRD_PARTY_KEYGUARD_PERMISSION)
+                        == PackageManager.PERMISSION_GRANTED) {
+                    return WindowManagerGlobal.ADD_OKAY;
+                }
+                // fall through to the normal check below
             }
 
             if (mContext.checkCallingOrSelfPermission(permission)
@@ -2677,6 +2700,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         return mWinShowWhenLocked;
     }
 
+    @Override
+    public WindowState getWinKeyguardPanelLw() {
+        return mKeyguardPanel;
+    }
+
     /** {@inheritDoc} */
     @Override
     public View addStartingWindow(IBinder appToken, String packageName, int theme,
@@ -2872,9 +2900,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         "PhoneWindowManager");
                 break;
             case TYPE_KEYGUARD_PANEL:
-                mContext.enforceCallingOrSelfPermission(
-                        org.cyanogenmod.platform.internal.Manifest.permission.THIRD_PARTY_KEYGUARD,
-                        "PhoneWindowManager");
+                // check deprecated perm first and if not granted enforce the new permission name
+                if (mContext.checkCallingOrSelfPermission(
+                        DEPRECATED_THIRD_PARTY_KEYGUARD_PERMISSION)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    mContext.enforceCallingOrSelfPermission(THIRD_PARTY_KEYGUARD,
+                            "PhoneWindowManager");
+                }
                 if (mKeyguardPanel != null) {
                     return WindowManagerGlobal.ADD_MULTIPLE_SINGLETON;
                 }
@@ -3138,6 +3170,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // timeout.
         if (keyCode == KeyEvent.KEYCODE_HOME) {
 
+            if (mTopFullscreenOpaqueWindowState != null &&
+                    (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
+                            & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS) != 0
+                    && mScreenOnFully) {
+                return 0;
+            }
             // If we have released the home key, and didn't do anything else
             // while it was pressed, then it is time to go home!
             if (!down) {
@@ -3238,6 +3276,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 return 0;
             }
 
+            if (mTopFullscreenOpaqueWindowState != null &&
+                    (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
+                            & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS) != 0
+                    && mScreenOnFully) {
+                return 0;
+            }
+
             if (down) {
                 if (mPressOnMenuBehavior == KEY_ACTION_APP_SWITCH
                         || mLongPressOnMenuBehavior == KEY_ACTION_APP_SWITCH) {
@@ -3303,6 +3348,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
             return 0;
         } else if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            if (mTopFullscreenOpaqueWindowState != null &&
+                    (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
+                            & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS) != 0
+                    && mScreenOnFully) {
+                return 0;
+            }
+
             if (!keyguardOn) {
                 if (down) {
                     if (mPressOnAppSwitchBehavior == KEY_ACTION_APP_SWITCH
@@ -5815,7 +5867,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             case KeyEvent.KEYCODE_POWER: {
                 if (mTopFullscreenOpaqueWindowState != null &&
                         (mTopFullscreenOpaqueWindowState.getAttrs().privateFlags
-                        & WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_POWER_KEY) != 0
+                        & (WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_SYSTEM_KEYS |
+                            WindowManager.LayoutParams.PRIVATE_FLAG_PREVENT_POWER_KEY)) != 0
                         && mScreenOnFully) {
                     return result;
                 }
@@ -5927,7 +5980,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         if (isWakeKey) {
-            wakeUp(event.getEventTime(), mAllowTheaterModeWakeFromKey, "android.policy:KEY", true);
+            wakeUp(event.getEventTime(), mAllowTheaterModeWakeFromKey, "android.policy:KEY",
+                    event.getKeyCode() == KeyEvent.KEYCODE_WAKEUP /* check prox only on wake key*/);
         }
 
         return result;
@@ -6365,7 +6419,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private void wakeUpFromPowerKey(long eventTime) {
-        wakeUp(eventTime, mAllowTheaterModeWakeFromPowerKey, "android.policy:POWER", true);
+        wakeUp(eventTime, mAllowTheaterModeWakeFromPowerKey, "android.policy:POWER");
     }
 
     private boolean wakeUp(long wakeTime, boolean wakeInTheaterMode, String reason) {
@@ -6981,36 +7035,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         theme = 0;
                     }
 
-                    mBootMsgDialog = new ProgressDialog(mContext, theme) {
-                        // This dialog will consume all events coming in to
-                        // it, to avoid it trying to do things too early in boot.
-                        @Override public boolean dispatchKeyEvent(KeyEvent event) {
-                            return true;
-                        }
-                        @Override public boolean dispatchKeyShortcutEvent(KeyEvent event) {
-                            return true;
-                        }
-                        @Override public boolean dispatchTouchEvent(MotionEvent ev) {
-                            return true;
-                        }
-                        @Override public boolean dispatchTrackballEvent(MotionEvent ev) {
-                            return true;
-                        }
-                        @Override public boolean dispatchGenericMotionEvent(MotionEvent ev) {
-                            return true;
-                        }
-                        @Override public boolean dispatchPopulateAccessibilityEvent(
-                                AccessibilityEvent event) {
-                            return true;
-                        }
-                    };
-                    if (mContext.getPackageManager().isUpgrade()) {
-                        mBootMsgDialog.setTitle(R.string.android_upgrading_title);
-                    } else {
-                        mBootMsgDialog.setTitle(R.string.android_start_title);
-                    }
-                    mBootMsgDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-                    mBootMsgDialog.setIndeterminate(true);
+                    mBootMsgDialog = new SudaModDialog(mContext, android.R.style.Theme_Translucent_NoTitleBar);
+
                     mBootMsgDialog.getWindow().setType(
                             WindowManager.LayoutParams.TYPE_BOOT_PROGRESS);
                     mBootMsgDialog.getWindow().addFlags(
@@ -7939,5 +7965,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mKeyguardDelegate != null) {
             mKeyguardDelegate.dump(prefix, pw);
         }
+    }
+
+    @Override
+    public void setLiveLockscreenEdgeDetector(boolean enable) {
+        mShowKeyguardOnLeftSwipe = enable;
     }
 }

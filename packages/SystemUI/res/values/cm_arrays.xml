@@ -61,45 +61,21 @@
         <item>@string/dynamic_qs_tile_ime_selector_label</item>
         <item>@string/dynamic_qs_tile_su_label</item>
         <item>@string/dynamic_qs_tile_adb_label</item>
+        <item>@string/dynamic_qs_tile_live_display_label</item>
     </string-array>
     <string-array name="dynamic_qs_tiles_icons_resources_ids" translatable="false">
         <item>ic_dynamic_qs_next_alarm</item>
         <item>ic_dynamic_qs_ime_selector</item>
         <item>ic_dynamic_qs_su</item>
         <item>ic_dynamic_qs_adb</item>
+        <item>ic_dynamic_qs_live_display</item>
     </string-array>
     <string-array name="dynamic_qs_tiles_values" translatable="false">
         <item>next_alarm</item>
         <item>ime_selector</item>
         <item>su</item>
         <item>adb</item>
-    </string-array>
-
-    <!-- LiveDisplay drawables -->
-    <string-array name="live_display_drawables" translatable="false">
-        <item>@drawable/ic_livedisplay_auto</item>
-        <item>@drawable/ic_livedisplay_off</item>
-        <item>@drawable/ic_livedisplay_day</item>
-        <item>@drawable/ic_livedisplay_night</item>
-        <item>@drawable/ic_livedisplay_outdoor</item>
-    </string-array>
-
-    <!-- LiveDisplay description-->
-    <string-array name="live_display_description" translatable="false">
-        <item>@string/accessibility_quick_settings_live_display_auto</item>
-        <item>@string/accessibility_quick_settings_live_display_off</item>
-        <item>@string/accessibility_quick_settings_live_display_day</item>
-        <item>@string/accessibility_quick_settings_live_display_night</item>
-        <item>@string/accessibility_quick_settings_live_display_outdoor</item>
-    </string-array>
-
-    <!-- LiveDisplay announcement-->
-    <string-array name="live_display_announcement" translatable="false">
-        <item>@string/accessibility_quick_settings_live_display_changed_auto</item>
-        <item>@string/accessibility_quick_settings_live_display_changed_off</item>
-        <item>@string/accessibility_quick_settings_live_display_changed_day</item>
-        <item>@string/accessibility_quick_settings_live_display_changed_night</item>
-        <item>@string/accessibility_quick_settings_live_display_changed_outdoor</item>
+        <item>live_display</item>
     </string-array>
 
     <array name="dockbatterymeter_bolt_points" translatable="false">

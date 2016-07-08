@@ -56,6 +56,7 @@ public class KeyguardBouncer {
     private ViewGroup mRoot;
     private boolean mShowingSoon;
     private int mBouncerPromptReason;
+    private PhoneStatusBar mPhoneStatusBar;
     private KeyguardUpdateMonitorCallback mUpdateMonitorCallback =
             new KeyguardUpdateMonitorCallback() {
                 @Override
@@ -66,13 +67,14 @@ public class KeyguardBouncer {
 
     public KeyguardBouncer(Context context, ViewMediatorCallback callback,
             LockPatternUtils lockPatternUtils, StatusBarWindowManager windowManager,
-            ViewGroup container) {
+            ViewGroup container, PhoneStatusBar phoneStatusBar) {
         mContext = context;
         mCallback = callback;
         mLockPatternUtils = lockPatternUtils;
         mContainer = container;
         mWindowManager = windowManager;
         mCmLockPatternUtils = new CmLockPatternUtils(mContext);
+        mPhoneStatusBar = phoneStatusBar;
         KeyguardUpdateMonitor.getInstance(mContext).registerCallback(mUpdateMonitorCallback);
     }
 
@@ -86,7 +88,15 @@ public class KeyguardBouncer {
         if (mRoot.getVisibility() == View.VISIBLE || mShowingSoon) {
             return;
         }
-
+        // ensure external keyguard view does not have focus
+        mPhoneStatusBar.unfocusKeyguardExternalView();
+        mPhoneStatusBar.getScrimController().forceHideScrims(false);
+        // Don't hide bottom area if we are in the middle of a affordance
+        // launch transition, since once the animation is finished, NPV
+        // will take care of setting it invisible.
+        if (!mPhoneStatusBar.mNotificationPanel.isLaunchTransitionRunning()) {
+            mPhoneStatusBar.mKeyguardBottomArea.setVisibility(View.GONE);
+        }
         // Try to dismiss the Keyguard. If no security pattern is set, this will dismiss the whole
         // Keyguard. If we need to authenticate, show the bouncer.
         if (!mKeyguardView.dismiss()) {

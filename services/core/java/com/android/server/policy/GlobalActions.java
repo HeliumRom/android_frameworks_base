@@ -49,7 +49,6 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.Manifest;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.os.Build;
@@ -72,6 +71,8 @@ import android.service.dreams.DreamService;
 import android.service.dreams.IDreamManager;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.ArraySet;
@@ -98,8 +99,8 @@ import android.widget.TextView;
 import cyanogenmod.providers.CMSettings;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
-import java.util.UUID;
 
 import org.cyanogenmod.internal.util.ThemeUtils;
 
@@ -141,6 +142,9 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     // Power menu customizations
     String mActions;
 
+    private BitSet mAirplaneModeBits;
+    private final List<PhoneStateListener> mPhoneStateListeners = new ArrayList<>();
+
     /**
      * @param context everything needs a context :(
      */
@@ -164,9 +168,15 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         mHasTelephony = cm.isNetworkSupported(ConnectivityManager.TYPE_MOBILE);
 
         // get notified of phone state changes
-        TelephonyManager telephonyManager =
-                (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-        telephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+        SubscriptionManager.from(mContext).addOnSubscriptionsChangedListener(
+                new SubscriptionManager.OnSubscriptionsChangedListener() {
+            @Override
+            public void onSubscriptionsChanged() {
+                super.onSubscriptionsChanged();
+                setupAirplaneModeListeners();
+            }
+        });
+        setupAirplaneModeListeners();
         mContext.getContentResolver().registerContentObserver(
                 Settings.Global.getUriFor(Settings.Global.AIRPLANE_MODE_ON), true,
                 mAirplaneModeObserver);
@@ -176,10 +186,59 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         mShowSilentToggle = SHOW_SILENT_TOGGLE && !mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_useFixedVolume);
 
+        updatePowerMenuActions();
+    }
+
+    /**
+     * Since there are two ways of handling airplane mode (with telephony, we depend on the internal
+     * device telephony state), and MSIM devices do not report phone state for missing SIMs, we
+     * need to dynamically setup listeners based on subscription changes.
+     *
+     * So if there is _any_ active SIM in the device, we can depend on the phone state,
+     * otherwise fall back to {@link Settings.Global#AIRPLANE_MODE_ON}.
+     */
+    private void setupAirplaneModeListeners() {
+        TelephonyManager telephonyManager =
+                (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+
+        for (PhoneStateListener listener : mPhoneStateListeners) {
+            telephonyManager.listen(listener, PhoneStateListener.LISTEN_NONE);
+        }
+        mPhoneStateListeners.clear();
+
+        final List<SubscriptionInfo> subInfoList = SubscriptionManager.from(mContext)
+                .getActiveSubscriptionInfoList();
+        if (subInfoList != null) {
+            mHasTelephony = true;
+            mAirplaneModeBits = new BitSet(subInfoList.size());
+            for (int i = 0; i < subInfoList.size(); i++) {
+                final int finalI = i;
+                PhoneStateListener subListener = new PhoneStateListener(subInfoList.get(finalI)
+                        .getSubscriptionId()) {
+                    @Override
+                    public void onServiceStateChanged(ServiceState serviceState) {
+                        final boolean inAirplaneMode = serviceState.getState()
+                                == ServiceState.STATE_POWER_OFF;
+                        mAirplaneModeBits.set(finalI, inAirplaneMode);
+
+                        // we're in airplane mode if _any_ of the subscriptions say we are
+                        mAirplaneState = mAirplaneModeBits.cardinality() > 0
+                                ? ToggleAction.State.On : ToggleAction.State.Off;
+
+                        mAirplaneModeOn.updateState(mAirplaneState);
+                        if (mAdapter != null) {
+                            mAdapter.notifyDataSetChanged();
+                        }
+                    }
+                };
+                mPhoneStateListeners.add(subListener);
+                telephonyManager.listen(subListener, PhoneStateListener.LISTEN_SERVICE_STATE);
+            }
+        } else {
+            mHasTelephony = false;
+        }
         // Set the initial status of airplane mode toggle
         mAirplaneState = getUpdatedAirplaneToggleState();
-
-        updatePowerMenuActions();
     }
 
     /**
@@ -189,14 +248,12 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     public void showDialog(boolean keyguardShowing, boolean isDeviceProvisioned) {
         mKeyguardShowing = keyguardShowing;
         mDeviceProvisioned = isDeviceProvisioned;
-        if (mDialog != null && mUiContext == null) {
+        if (mDialog != null) {
             mDialog.dismiss();
             mDialog = null;
-            mDialog = createDialog();
             // Show delayed, so that the dismiss of the previous dialog completes
             mHandler.sendEmptyMessage(MESSAGE_SHOW);
         } else {
-            mDialog = createDialog();
             handleShow();
         }
     }
@@ -215,6 +272,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
 
     private void handleShow() {
         awakenIfNecessary();
+        mDialog = createDialog();
         prepareDialog();
 
         // If we only have 1 item and it's a simple press action, just do this action.
@@ -234,7 +292,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     private Context getUiContext() {
         if (mUiContext == null) {
             mUiContext = ThemeUtils.createUiContext(mContext);
-            mUiContext.setTheme(android.R.style.Theme_DeviceDefault_Light_DarkActionBar);
+            mUiContext.setTheme(com.android.internal.R.style.Theme_Power_Dialog);
         }
         return mUiContext != null ? mUiContext : mContext;
     }
@@ -358,7 +416,8 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         params.mOnClickListener = this;
         params.mForceInverseBackground = true;
 
-        GlobalActionsDialog dialog = new GlobalActionsDialog(getUiContext(), params);
+        GlobalActionsDialog dialog = new GlobalActionsDialog(/** system context **/ mContext,
+                /** themed context **/ getUiContext(), params);
         dialog.setCanceledOnTouchOutside(false); // Handled by the custom class.
 
         dialog.getListView().setItemsCanFocus(true);
@@ -1153,6 +1212,12 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     private final class SilentModeTriStateAction implements Action, View.OnClickListener {
 
         private final int[] ITEM_IDS = { R.id.option1, R.id.option2, R.id.option3, R.id.option4 };
+        private final int[] ITEM_INDEX_TO_ZEN_MODE = {
+                Global.ZEN_MODE_NO_INTERRUPTIONS,
+                Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS,
+                Global.ZEN_MODE_OFF,
+                Global.ZEN_MODE_OFF
+        };
 
         private final AudioManager mAudioManager;
         private final Handler mHandler;
@@ -1236,21 +1301,15 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
             if (!(v.getTag() instanceof Integer)) return;
 
             int index = (Integer) v.getTag();
-            if (index == 0 || index == 1) {
-                int zenMode = index == 0
-                        ? Global.ZEN_MODE_NO_INTERRUPTIONS
-                        : Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS;
-                // ZenModeHelper will revert zen mode back to the previous value if we just
-                // put the value into the Settings db, so use INotificationManager instead
-                INotificationManager noMan = INotificationManager.Stub.asInterface(
-                        ServiceManager.getService(Context.NOTIFICATION_SERVICE));
-                try {
-                    noMan.setZenMode(zenMode, null, TAG);
-                } catch (RemoteException e) {
-                    Log.e(TAG, "Unable to set zen mode", e);
-                }
-            } else {
-                Global.putInt(mContext.getContentResolver(), Global.ZEN_MODE, Global.ZEN_MODE_OFF);
+            int zenMode = ITEM_INDEX_TO_ZEN_MODE[index];
+            // ZenModeHelper will revert zen mode back to the previous value if we just
+            // put the value into the Settings db, so use INotificationManager instead
+            INotificationManager noMan = INotificationManager.Stub.asInterface(
+                    ServiceManager.getService(Context.NOTIFICATION_SERVICE));
+            try {
+                noMan.setZenMode(zenMode, null, TAG);
+            } catch (RemoteException e) {
+                Log.e(TAG, "Unable to set zen mode", e);
             }
 
             if (index == 2 || index == 3) {
@@ -1294,17 +1353,6 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
     private BroadcastReceiver mThemeChangeReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             mUiContext = null;
-        }
-    };
-
-    PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
-        @Override
-        public void onServiceStateChanged(ServiceState serviceState) {
-            if (!mHasTelephony) return;
-            final boolean inAirplaneMode = serviceState.getState() == ServiceState.STATE_POWER_OFF;
-            mAirplaneState = inAirplaneMode ? ToggleAction.State.On : ToggleAction.State.Off;
-            mAirplaneModeOn.updateState(mAirplaneState);
-            mAdapter.notifyDataSetChanged();
         }
     };
 
@@ -1409,6 +1457,7 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
 
     private static final class GlobalActionsDialog extends Dialog implements DialogInterface {
         private final Context mContext;
+        private Context mSystemContext = null;
         private final int mWindowTouchSlop;
         private final AlertController mAlert;
         private final MyAdapter mAdapter;
@@ -1418,13 +1467,26 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
         private boolean mIntercepted;
         private boolean mCancelOnUp;
 
-        public GlobalActionsDialog(Context context, AlertParams params) {
+        private GlobalActionsDialog(Context context, AlertParams params) {
             super(context, getDialogTheme(context));
             mContext = getContext();
             mAlert = new AlertController(mContext, this, getWindow());
             mAdapter = (MyAdapter) params.mAdapter;
             mWindowTouchSlop = ViewConfiguration.get(context).getScaledWindowTouchSlop();
             params.apply(mAlert);
+        }
+
+        /**
+         * Utilized for a working global actions dialog for both accessibility services (which
+         * require a system context) and
+         * @param systemContext Base context (should be from system process)
+         * @param themedContext Themed context (created from system ui)
+         * @param params
+         */
+        public GlobalActionsDialog(Context systemContext, Context themedContext,
+                AlertParams params) {
+            this(themedContext, params);
+            mSystemContext = systemContext;
         }
 
         private static int getDialogTheme(Context context) {
@@ -1440,8 +1502,8 @@ class GlobalActions implements DialogInterface.OnDismissListener, DialogInterfac
             // of dismissing the dialog on touch outside. This is because the dialog
             // is dismissed on the first down while the global gesture is a long press
             // with two fingers anywhere on the screen.
-            if (EnableAccessibilityController.canEnableAccessibilityViaGesture(mContext)) {
-                mEnableAccessibilityController = new EnableAccessibilityController(mContext,
+            if (EnableAccessibilityController.canEnableAccessibilityViaGesture(mSystemContext)) {
+                mEnableAccessibilityController = new EnableAccessibilityController(mSystemContext,
                         new Runnable() {
                     @Override
                     public void run() {

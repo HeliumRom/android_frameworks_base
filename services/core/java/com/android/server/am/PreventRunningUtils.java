@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.IBinder;
 import android.util.ArraySet;
 
@@ -46,7 +47,7 @@ public class PreventRunningUtils {
 
     private static void setSender(IApplicationThread caller) {
         final ProcessRecord callerApp = mAm.getRecordForAppLocked(caller);
-        mPreventRunning.setSender(callerApp != null ? callerApp.info.packageName : null);
+        mPreventRunning.setSender(callerApp != null ? callerApp.info.packageName : String.valueOf(Binder.getCallingUid()));
     }
 
     public static void setSenderInStartService(IApplicationThread caller) {

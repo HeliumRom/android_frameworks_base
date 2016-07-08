@@ -88,6 +88,7 @@
   <string name="quick_settings_profiles_off">Профілі адключаны</string>
   <string name="quick_settings_heads_up_label">Усплывальныя паведамленні</string>
   <string name="quick_settings_battery_saver_label">Энергазахавання</string>
+  <!-- quick settings battery saver label to show when device is charging and tile is disabled -->
   <!-- Content description of the sync tile in quick settings when off (not shown on the screen). [CHAR LIMIT=NONE] -->
   <string name="accessibility_quick_settings_sync_off">Сінхранізацыя адключаная.</string>
   <!-- Content description of the sync tile in quick settings when on (not shown on the screen). [CHAR LIMIT=NONE] -->
@@ -103,6 +104,7 @@
   <string name="quick_settings_lockscreen_label">Экран блакіроўкі</string>
   <string name="quick_settings_ambient_display_label">Індыкацыя падзей</string>
   <string name="quick_settings_lockscreen_label_enforced">Блакаванне экрана ўключана</string>
+  <string name="quick_settings_lockscreen_label_locked_by_profile">Адключаны профілем</string>
   <!-- Content description of the screen timeout tile in quick settings (not shown on the screen). [CHAR LIMIT=NONE] -->
   <string name="accessibility_quick_settings_screen_timeout">Час да выключэння экрана: <xliff:g id="timeout" example="30 seconds">%s</xliff:g>.</string>
   <!-- Announcement made when the screen timeout tile changes (not shown on the screen). [CHAR LIMIT=NONE] -->
@@ -168,17 +170,6 @@
   <string name="dynamic_qs_tile_next_alarm_label">Наступны будзільнік</string>
   <string name="dynamic_qs_tile_ime_selector_label">Выбар метаду ўводу</string>
   <string name="dynamic_qs_tile_su_label">Суперкарыстальнік</string>
-  <!-- LiveDisplay strings -->
-  <string name="accessibility_quick_settings_live_display_off">LiveDisplay выключаны.</string>
-  <string name="accessibility_quick_settings_live_display_auto">LiveDisplay працуе ў аўтаматычным рэжыме.</string>
-  <string name="accessibility_quick_settings_live_display_day">LiveDisplay працуе ў дзённым рэжыме.</string>
-  <string name="accessibility_quick_settings_live_display_night">LiveDisplay працуе ў начным рэжыме.</string>
-  <string name="accessibility_quick_settings_live_display_outdoor">LiveDisplay працуе ў рэжыме \"на вуліцы\".</string>
-  <string name="accessibility_quick_settings_live_display_changed_off">LiveDisplay выключаны.</string>
-  <string name="accessibility_quick_settings_live_display_changed_auto">LiveDisplay пераключаны ў аўтаматычны рэжым.</string>
-  <string name="accessibility_quick_settings_live_display_changed_day">LiveDisplay пераключаны ў дзённы рэжым.</string>
-  <string name="accessibility_quick_settings_live_display_changed_night">LiveDisplay пераключаны ў начны рэжым.</string>
-  <string name="accessibility_quick_settings_live_display_changed_outdoor">LiveDisplay пераключаны ў рэжым \"на вуліцы\".</string>
   <string name="quick_settings_title_advanced_location">Налады адсылання геададзеных</string>
   <!-- Content description of the location tile in quick settings when on, battery saving mode (not shown on the screen). [CHAR LIMIT=NONE] -->
   <string name="accessibility_quick_settings_location_battery_saving">Адпраўка месцазнаходжання: рэжым эканоміі батарэі.</string>
@@ -204,9 +195,19 @@
   <!-- detail header when adding a tile -->
   <string name="quick_settings_tiles_add_tiles">Дадаць плітку</string>
   <!-- Hotspot dialog message -->
+  <string name="hotspot_apm_message">Немагчыма падлучыцца да сеткі сотавай сувязі ў той час як рэжым палёту ўключаны. Адключыце рэжым палёту і паспрабуйце ізноў.</string>
   <!-- Notification which notifies user flashlight is enabled -->
+  <string name="quick_settings_tile_flashlight_not_title">Выбліск уключаны</string>
+  <string name="quick_settings_tile_flashlight_not_summary">Націсніце, каб уключыць</string>
   <!-- Wi-Fi hotspot label when enabled -->
   <!-- CellularTile data sim not configured state string -->
+  <string name="data_sim_not_configured">Няма дадзеных SIM</string>
   <!-- Content description of the dock battery level icon for accessibility (not shown on the screen). [CHAR LIMIT=NONE] -->
   <string name="accessibility_dock_battery_level">Зарад батарэі док-станцыі <xliff:g id="number">%d</xliff:g> адсоткаў.</string>
+  <!-- Play queue -->
+  <string name="play_queue_extention">Паказаць чаргу прайгравання</string>
+  <!-- Path data for portrait battery -->
+  <!-- Path data for landscape battery -->
+  <!-- Path data for circle battery -->
+  <!-- Weather string format in keyguard -->
 </resources>

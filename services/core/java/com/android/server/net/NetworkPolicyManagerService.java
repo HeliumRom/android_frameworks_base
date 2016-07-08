@@ -47,6 +47,7 @@ import static android.net.NetworkPolicyManager.POLICY_NONE;
 import static android.net.NetworkPolicyManager.POLICY_REJECT_METERED_BACKGROUND;
 import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_DATA;
 import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_WLAN;
+import static android.net.NetworkPolicyManager.POLICY_REJECT_ON_WLAN_BACKGROUND;
 import static android.net.NetworkPolicyManager.RULE_ALLOW_ALL;
 import static android.net.NetworkPolicyManager.RULE_REJECT_ALL;
 import static android.net.NetworkPolicyManager.RULE_REJECT_METERED;
@@ -107,6 +108,7 @@ import android.net.INetworkPolicyListener;
 import android.net.INetworkPolicyManager;
 import android.net.INetworkStatsService;
 import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
 import android.net.NetworkIdentity;
 import android.net.NetworkInfo;
 import android.net.NetworkPolicy;
@@ -161,6 +163,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.server.DeviceIdleController;
 import com.android.server.EventLogTags;
 import com.android.server.LocalServices;
+import com.android.server.NetPluginDelegate;
 import com.google.android.collect.Lists;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -1207,7 +1210,11 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
         final ArrayList<Pair<String, NetworkIdentity>> connIdents = new ArrayList<>(states.length);
         final ArraySet<String> connIfaces = new ArraySet<String>(states.length);
         for (NetworkState state : states) {
-            if (state.networkInfo.isConnected()) {
+            if (state.networkInfo.isConnected() && (state.networkCapabilities == null
+                        || !state.networkCapabilities.hasTransport(
+                                    NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || state.networkCapabilities.hasCapability(
+                                    NetworkCapabilities.NET_CAPABILITY_INTERNET))) {
                 final NetworkIdentity ident = NetworkIdentity.buildNetworkIdentity(mContext, state);
 
                 final String baseIface = state.linkProperties.getInterfaceName();
@@ -2400,7 +2407,8 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
         }
 
         try {
-            mNetworkManager.restrictAppOnWlan(uid, (uidPolicy & POLICY_REJECT_ON_WLAN) != 0);
+            mNetworkManager.restrictAppOnWlan(uid, (uidPolicy & POLICY_REJECT_ON_WLAN) != 0 ||
+                    (((uidPolicy & POLICY_REJECT_ON_WLAN_BACKGROUND) != 0) && !uidForeground));
             mNetworkManager.restrictAppOnData(uid, (uidPolicy & POLICY_REJECT_ON_DATA) != 0);
         } catch (RemoteException e) {
             // ignored; service lives in system_server

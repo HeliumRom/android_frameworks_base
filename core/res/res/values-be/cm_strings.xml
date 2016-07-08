@@ -135,6 +135,7 @@
   <string name="app_ops_start_at_bootup">прызначыць запуск пры ўлучэнні прылады</string>
   <string name="app_ops_toast_window">адлюстроўваць усплывальныя паведамленні</string>
   <string name="app_ops_toggle_bluetooth">пераключыць стан Bluetooth</string>
+  <string name="app_ops_toggle_mobile_data">пераключыць стан сотавай сеткі</string>
   <string name="app_ops_toggle_nfc">пераключыць стан модуля NFC</string>
   <string name="app_ops_toggle_wifi">пераключыць стан Wi-Fi</string>
   <string name="app_ops_use_alarm_volume">атрымаць кіраванне гучнасцю будзільніка</string>
@@ -167,18 +168,6 @@
   <string name="app_ops_su">атрымаць правы суперкарыстальніка</string>
   <!-- Notify user that they are in Lock-to-app (for devices without navbar) -->
   <string name="lock_to_app_toast_no_navbar">Каб адмацаваць экран, націсніце і ўтрымвайце кнопку \"Назад\".</string>
-  <!-- LiveDisplay strings -->
-  <string name="live_display_auto">Аўтаматычна</string>
-  <string name="live_display_auto_summary">Аўтаматычная падладка колеравай тэмпературы экрана пасля заходу і ўзыходу сонца</string>
-  <string name="live_display_off">Адключыць</string>
-  <string name="live_display_off_summary">Адключыць аўтападладку</string>
-  <string name="live_display_day">Дзень</string>
-  <string name="live_display_day_summary">Толькі дзённыя налады</string>
-  <string name="live_display_night">Ноч</string>
-  <string name="live_display_night_summary">Толькі начныя налады</string>
-  <string name="live_display_outdoor">На вуліцы (яскравае сонца)</string>
-  <string name="live_display_outdoor_summary">Толькі вулічны рэжым</string>
-  <string name="live_display_hint">LiveDisplay дапаможа зменшыць глядзельную напругу і палепшыць сон. Націсніце тут, каб паспрабаваць!</string>
   <!-- Template for showing cellular network operator name while LTE calling is enabled -->
   <string name="tethered_notification_no_device_message">Няма падлучаных прылад</string>
   <string name="tethered_notification_one_device_message"><xliff:g id="count">%1$s</xliff:g> падлучаная прылада</string>
@@ -190,6 +179,8 @@
   <string name="notify_package_component_protected_title">Запуск дадатку забаронены</string>
   <string name="notify_package_component_protected_text">Дадатак <xliff:g id="app_name">%1$s</xliff:g> заблакаваны на запуск. Націсні, каб увесці паролль і запусціць дадатак.</string>
   <!-- Battery fully charged notification -->
+  <string name="notify_battery_fully_charged_title">Батарэя цалкам зараджана</string>
+  <string name="notify_battery_fully_charged_text">Адлучы зарадную прыладу каб павялічыць тэрмін жыцця батарэі.</string>
   <!-- [CHAR LIMIT=NONE] Title of an application permission, listed so the user can choose
          whether they want to allow the application to do this. -->
   <string name="permlab_resetBatteryStats">Абнуленне статыстыкі батарэі</string>
@@ -197,4 +188,6 @@
          whether they want to allow the application to do this. -->
   <string name="permdesc_resetBatteryStats">Дазволіць дадатку чысціць дадзеныя пра выкарыстанне акумулятарнай батарэі прылады.</string>
   <!-- Uicc hotswapped event configuration needed notification -->
+  <string name="uicc_hot_swapped_event_title">SIM-картка змянілася</string>
+  <string name="uicc_hot_swapped_event_text">Націсні, каб усталяваць параметры па змаўчанні</string>
 </resources>

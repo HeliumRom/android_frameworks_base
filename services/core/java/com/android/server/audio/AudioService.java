@@ -911,59 +911,63 @@ public class AudioService extends IAudioService.Stub {
      * @hide
      */
     public void addMediaPlayerAndUpdateRemoteController (String packageName) {
-        Log.v(TAG, "addMediaPlayerAndUpdateRemoteController: size of existing list: " +
-                mMediaPlayers.size());
-        boolean playerToAdd = true;
-        if (mMediaPlayers.size() > 0) {
-            final Iterator<MediaPlayerInfo> rccIterator = mMediaPlayers.iterator();
-            while (rccIterator.hasNext()) {
-                final MediaPlayerInfo player = rccIterator.next();
-                if (packageName.equals(player.getPackageName())) {
-                    Log.e(TAG, "Player entry present, no need to add");
-                    playerToAdd = false;
-                    player.setFocus(true);
-                } else {
-                    Log.e(TAG, "Player: " + player.getPackageName()+ "Lost Focus");
-                    player.setFocus(false);
+        synchronized(mMediaPlayers) {
+            Log.v(TAG, "addMediaPlayerAndUpdateRemoteController: size of existing list: " +
+                    mMediaPlayers.size());
+            boolean playerToAdd = true;
+            if (mMediaPlayers.size() > 0) {
+                final Iterator<MediaPlayerInfo> rccIterator = mMediaPlayers.iterator();
+                while (rccIterator.hasNext()) {
+                    final MediaPlayerInfo player = rccIterator.next();
+                    if (packageName.equals(player.getPackageName())) {
+                        Log.e(TAG, "Player entry present, no need to add");
+                        playerToAdd = false;
+                        player.setFocus(true);
+                    } else {
+                        Log.e(TAG, "Player: " + player.getPackageName()+ "Lost Focus");
+                        player.setFocus(false);
+                    }
                 }
             }
+            if (playerToAdd) {
+                Log.e(TAG, "Adding Player: " + packageName + " to available player list");
+                mMediaPlayers.add(new MediaPlayerInfo(packageName, true));
+            }
+            Intent intent = new Intent(AudioManager.RCC_CHANGED_ACTION);
+            intent.putExtra(AudioManager.EXTRA_CALLING_PACKAGE_NAME, packageName);
+            intent.putExtra(AudioManager.EXTRA_FOCUS_CHANGED_VALUE, true);
+            intent.putExtra(AudioManager.EXTRA_AVAILABLITY_CHANGED_VALUE, true);
+            sendBroadcastToAll(intent);
+            Log.v(TAG, "updating focussed RCC change to RCD: CallingPackageName:"
+                    + packageName);
         }
-        if (playerToAdd) {
-            Log.e(TAG, "Adding Player: " + packageName + " to available player list");
-            mMediaPlayers.add(new MediaPlayerInfo(packageName, true));
-        }
-        Intent intent = new Intent(AudioManager.RCC_CHANGED_ACTION);
-        intent.putExtra(AudioManager.EXTRA_CALLING_PACKAGE_NAME, packageName);
-        intent.putExtra(AudioManager.EXTRA_FOCUS_CHANGED_VALUE, true);
-        intent.putExtra(AudioManager.EXTRA_AVAILABLITY_CHANGED_VALUE, true);
-        sendBroadcastToAll(intent);
-        Log.v(TAG, "updating focussed RCC change to RCD: CallingPackageName:"
-                + packageName);
     }
 
     /**
      * @hide
      */
     public void updateRemoteControllerOnExistingMediaPlayers() {
-        Log.v(TAG, "updateRemoteControllerOnExistingMediaPlayers: size of Player list: " +
+        synchronized(mMediaPlayers) {
+            Log.v(TAG, "updateRemoteControllerOnExistingMediaPlayers: size of Player list: " +
                                                                 mMediaPlayers.size());
-        if (mMediaPlayers.size() > 0) {
-            Log.v(TAG, "Inform RemoteController regarding existing RCC entry");
-            final Iterator<MediaPlayerInfo> rccIterator = mMediaPlayers.iterator();
-            while (rccIterator.hasNext()) {
-                final MediaPlayerInfo player = rccIterator.next();
-                Intent intent = new Intent(AudioManager.RCC_CHANGED_ACTION);
-                intent.putExtra(AudioManager.EXTRA_CALLING_PACKAGE_NAME,
-                                                    player.getPackageName());
-                intent.putExtra(AudioManager.EXTRA_FOCUS_CHANGED_VALUE,
-                                                    player.isFocussed());
-                intent.putExtra(AudioManager.EXTRA_AVAILABLITY_CHANGED_VALUE, true);
-                sendBroadcastToAll(intent);
-                Log.v(TAG, "updating RCC change: CallingPackageName:" +
-                                                    player.getPackageName());
+            if (mMediaPlayers.size() > 0) {
+                Log.v(TAG, "Inform RemoteController regarding existing RCC entry");
+                final Iterator<MediaPlayerInfo> rccIterator = mMediaPlayers.iterator();
+                while (rccIterator.hasNext()) {
+                    final MediaPlayerInfo player = rccIterator.next();
+                    Intent intent = new Intent(AudioManager.RCC_CHANGED_ACTION);
+                    intent.putExtra(AudioManager.EXTRA_CALLING_PACKAGE_NAME,
+                                                        player.getPackageName());
+                    intent.putExtra(AudioManager.EXTRA_FOCUS_CHANGED_VALUE,
+                                                        player.isFocussed());
+                    intent.putExtra(AudioManager.EXTRA_AVAILABLITY_CHANGED_VALUE, true);
+                    sendBroadcastToAll(intent);
+                    Log.v(TAG, "updating RCC change: CallingPackageName:" +
+                                                        player.getPackageName());
+                }
+            } else {
+                Log.e(TAG, "No RCC entry present to update");
             }
-        } else {
-            Log.e(TAG, "No RCC entry present to update");
         }
     }
 
@@ -971,34 +975,36 @@ public class AudioService extends IAudioService.Stub {
      * @hide
      */
     public void removeMediaPlayerAndUpdateRemoteController (String packageName) {
-        Log.v(TAG, "removeMediaPlayerAndUpdateRemoteController: size of existing list: " +
-                                                                mMediaPlayers.size());
-        boolean playerToRemove = false;
-        int index = -1;
-        if (mMediaPlayers.size() > 0) {
-            final Iterator<MediaPlayerInfo> rccIterator = mMediaPlayers.iterator();
-            while (rccIterator.hasNext()) {
-                index++;
-                final MediaPlayerInfo player = rccIterator.next();
-                if (packageName.equals(player.getPackageName())) {
-                    Log.v(TAG, "Player entry present remove and update RemoteController");
-                    playerToRemove = true;
-                    break;
-                } else {
-                    Log.v(TAG, "Player entry for " + player.getPackageName()+ " is not present");
+        synchronized(mMediaPlayers) {
+            Log.v(TAG, "removeMediaPlayerAndUpdateRemoteController: size of existing list: " +
+                                                                    mMediaPlayers.size());
+            boolean playerToRemove = false;
+            int index = -1;
+            if (mMediaPlayers.size() > 0) {
+                final Iterator<MediaPlayerInfo> rccIterator = mMediaPlayers.iterator();
+                while (rccIterator.hasNext()) {
+                    index++;
+                    final MediaPlayerInfo player = rccIterator.next();
+                    if (packageName.equals(player.getPackageName())) {
+                        Log.v(TAG, "Player entry present remove and update RemoteController");
+                        playerToRemove = true;
+                        break;
+                    } else {
+                        Log.v(TAG, "Player entry for " + player.getPackageName()+ " is not present");
+                    }
                 }
             }
+            if (playerToRemove) {
+                Log.e(TAG, "Removing Player: " + packageName + " from index" + index);
+                mMediaPlayers.remove(index);
+            }
+            Intent intent = new Intent(AudioManager.RCC_CHANGED_ACTION);
+            intent.putExtra(AudioManager.EXTRA_CALLING_PACKAGE_NAME, packageName);
+            intent.putExtra(AudioManager.EXTRA_FOCUS_CHANGED_VALUE, false);
+            intent.putExtra(AudioManager.EXTRA_AVAILABLITY_CHANGED_VALUE, false);
+            sendBroadcastToAll(intent);
+            Log.v(TAG, "Updated List size: " + mMediaPlayers.size());
         }
-        if (playerToRemove) {
-            Log.e(TAG, "Removing Player: " + packageName + " from index" + index);
-            mMediaPlayers.remove(index);
-        }
-        Intent intent = new Intent(AudioManager.RCC_CHANGED_ACTION);
-        intent.putExtra(AudioManager.EXTRA_CALLING_PACKAGE_NAME, packageName);
-        intent.putExtra(AudioManager.EXTRA_FOCUS_CHANGED_VALUE, false);
-        intent.putExtra(AudioManager.EXTRA_AVAILABLITY_CHANGED_VALUE, false);
-        sendBroadcastToAll(intent);
-        Log.v(TAG, "Updated List size: " + mMediaPlayers.size());
     }
 
     private void checkAllAliasStreamVolumes() {
@@ -4003,8 +4009,29 @@ public class AudioService extends IAudioService.Stub {
             int index;
             if (mIsMuted) {
                 index = 0;
-            } else if (((device & AudioSystem.DEVICE_OUT_ALL_A2DP) != 0 && mAvrcpAbsVolSupported)
-                    || ((device & mFullVolumeDevices) != 0)) {
+            } else if ((device & AudioSystem.DEVICE_OUT_ALL_A2DP) != 0 && mAvrcpAbsVolSupported) {
+                /* Special handling for Bluetooth Absolute Volume scenario
+                 * If we send full audio gain, some accessories are too loud even at its lowest
+                 * volume. We are not able to enumerate all such accessories, so here is the
+                 * workaround from phone side.
+                 * For the lowest volume steps 1 and 2, restrict audio gain to 50% and 75%.
+                 * For volume step 0, set audio gain to 0 as some accessories won't mute on their end.
+                 */
+                int i = (getIndex(device) + 5)/10;
+                if (i == 0) {
+                    // 0% for volume 0
+                    index = 0;
+                } else if (i == 1) {
+                    // 50% for volume 1
+                    index = (int)(mIndexMax * 0.5) /10;
+                } else if (i == 2) {
+                    // 75% for volume 2
+                    index = (int)(mIndexMax * 0.75) /10;
+                } else {
+                    // otherwise, full gain
+                    index = (mIndexMax + 5)/10;
+                }
+            } else if ((device & mFullVolumeDevices) != 0) {
                 index = (mIndexMax + 5)/10;
             } else {
                 index = (getIndex(device) + 5)/10;
@@ -4628,7 +4655,11 @@ public class AudioService extends IAudioService.Stub {
                     break;
 
                 case MSG_PLAY_SOUND_EFFECT:
-                    onPlaySoundEffect(msg.arg1, msg.arg2);
+                    if (isStreamMute(AudioSystem.STREAM_SYSTEM)) {
+                        Log.d(TAG, "Stream muted, skip playback");
+                    } else {
+                        onPlaySoundEffect(msg.arg1, msg.arg2);
+                    }
                     break;
 
                 case MSG_BTA2DP_DOCK_TIMEOUT:

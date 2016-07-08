@@ -81,6 +81,7 @@ import android.net.INetworkManagementEventObserver;
 import android.net.INetworkStatsService;
 import android.net.INetworkStatsSession;
 import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
 import android.net.NetworkIdentity;
 import android.net.NetworkInfo;
 import android.net.NetworkState;
@@ -123,6 +124,7 @@ import com.android.internal.util.FileRotator;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.server.EventLogTags;
 import com.android.server.LocalServices;
+import com.android.server.NetPluginDelegate;
 import com.android.server.connectivity.Tethering;
 
 import java.io.File;
@@ -628,6 +630,26 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         return mXtStatsCached.getHistory(template, UID_ALL, SET_ALL, TAG_NONE, fields);
     }
 
+    /**
+     * Reset entire data usage history for all the uids in the template and update global
+     * data stats
+     */
+    @Override
+    public void resetDataUsageHistoryForAllUid(NetworkTemplate template) {
+        mContext.enforceCallingOrSelfPermission(MODIFY_NETWORK_ACCOUNTING, TAG);
+
+        synchronized (mStatsLock) {
+            mWakeLock.acquire();
+            try {
+                resetDataUsageLocked(template);
+            } catch (Exception e) {
+                // ignored; service lives in system_server
+            } finally {
+                mWakeLock.release();
+            }
+        }
+    }
+
     @Override
     public long getNetworkTotalBytes(NetworkTemplate template, long start, long end) {
         mContext.enforceCallingOrSelfPermission(READ_NETWORK_USAGE_HISTORY, TAG);
@@ -920,7 +942,11 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
 
         final ArraySet<String> mobileIfaces = new ArraySet<>();
         for (NetworkState state : states) {
-            if (state.networkInfo.isConnected()) {
+            if (state.networkInfo.isConnected() && (state.networkCapabilities == null
+                        || !state.networkCapabilities.hasTransport(
+                                    NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || state.networkCapabilities.hasCapability(
+                                    NetworkCapabilities.NET_CAPABILITY_INTERNET))) {
                 final boolean isMobile = isNetworkTypeMobile(state.networkInfo.getType());
                 final NetworkIdentity ident = NetworkIdentity.buildNetworkIdentity(mContext, state);
 
@@ -1146,6 +1172,18 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         removeUidsLocked(uids);
+    }
+
+    /**
+     * Reset data usage history for all uids, uid tags, and global transfer data for the input template
+     */
+    private void resetDataUsageLocked(NetworkTemplate template) {
+        // Perform one last poll before removing
+        performPollLocked(FLAG_PERSIST_ALL);
+
+        mUidRecorder.resetDataUsageLocked(template);
+        mUidTagRecorder.resetDataUsageLocked(template);
+        mXtRecorder.resetDataUsageLocked(template);
     }
 
     @Override

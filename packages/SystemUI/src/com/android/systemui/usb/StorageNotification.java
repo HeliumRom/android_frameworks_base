@@ -327,7 +327,7 @@ public class StorageNotification extends SystemUI {
 
         // Don't annoy when user dismissed in past.  (But make sure the disk is adoptable; we
         // used to allow snoozing non-adoptable disks too.)
-        if (rec.isSnoozed() && disk.isAdoptable()) {
+        if (rec == null || (rec.isSnoozed() && disk.isAdoptable())) {
             return null;
         }
 
@@ -364,6 +364,11 @@ public class StorageNotification extends SystemUI {
                     .setContentIntent(browseIntent)
                     .setCategory(Notification.CATEGORY_SYSTEM)
                     .setPriority(Notification.PRIORITY_LOW);
+            // USB disks notification can be persistent
+            if (disk.isUsb()) {
+                builder.setOngoing(mContext.getResources().getBoolean(
+                        R.bool.config_persistUsbDriveNotification));
+            }
             // Non-adoptable disks can't be snoozed.
             if (disk.isAdoptable()) {
                 builder.setDeleteIntent(buildSnoozeIntent(vol.getFsUuid()));

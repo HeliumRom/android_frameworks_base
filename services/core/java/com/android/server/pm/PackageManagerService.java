@@ -248,6 +248,7 @@ import com.android.server.IntentResolver;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
 import com.android.server.SystemConfig;
+import com.android.server.SystemConfig.AppLink;
 import com.android.server.Watchdog;
 import com.android.server.pm.PermissionsState.PermissionState;
 import com.android.server.pm.Settings.DatabaseVersion;
@@ -2637,10 +2638,11 @@ public class PackageManagerService extends IPackageManager.Stub {
         }
 
         SystemConfig systemConfig = SystemConfig.getInstance();
-        ArraySet<String> packages = systemConfig.getLinkedApps();
+        ArraySet<AppLink> links = systemConfig.getLinkedApps();
         ArraySet<String> domains = new ArraySet<String>();
 
-        for (String packageName : packages) {
+        for (AppLink link : links) {
+            String packageName = link.pkgname;
             PackageParser.Package pkg = mPackages.get(packageName);
             if (pkg != null) {
                 if (!pkg.isSystemApp()) {
@@ -2665,11 +2667,11 @@ public class PackageManagerService extends IPackageManager.Stub {
                     // state w.r.t. the formal app-linkage "no verification attempted" state;
                     // and then 'always' in the per-user state actually used for intent resolution.
                     final IntentFilterVerificationInfo ivi;
-                    ivi = mSettings.createIntentFilterVerificationIfNeededLPw(packageName,
-                            new ArrayList<String>(domains));
+                    ivi = mSettings.createIntentFilterVerificationIfNeededLPw(
+                            packageName, new ArrayList<String>(domains));
                     ivi.setStatus(INTENT_FILTER_DOMAIN_VERIFICATION_STATUS_UNDEFINED);
-                    mSettings.updateIntentFilterVerificationStatusLPw(packageName,
-                            INTENT_FILTER_DOMAIN_VERIFICATION_STATUS_ALWAYS, userId);
+                    mSettings.updateIntentFilterVerificationStatusLPw(
+                            packageName, link.state, userId);
                 } else {
                     Slog.w(TAG, "Sysconfig <app-link> package '" + packageName
                             + "' does not handle web links");
@@ -4712,9 +4714,14 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     private boolean shouldIncludeResolveActivity(Intent intent) {
+        // Don't call into AppSuggestManager before it comes up later in the SystemServer init!
+        if (!mSystemReady) {
+            return false;
+        }
         synchronized(mPackages) {
             AppSuggestManager suggest = AppSuggestManager.getInstance(mContext);
-            return mResolverReplaced && (suggest != null) ? suggest.handles(intent) : false;
+            return mResolverReplaced && (suggest.getService() != null) ?
+                    suggest.handles(intent) : false;
         }
     }
 
@@ -5849,12 +5856,15 @@ public class PackageManagerService extends IPackageManager.Stub {
                     }
                     synchronized (mPackages) {
                         if (DEBUG_PREBUNDLED_SCAN) Log.d(TAG,
-                                "Marking prebundled packages for user " + prebundledUserId);
+                                "Marking prebundled package " + pkg.packageName +
+                                        " for user " + prebundledUserId);
                         mSettings.markPrebundledPackageInstalledLPr(prebundledUserId,
                                 pkg.packageName);
                         // do this for every other user
                         for (UserInfo userInfo : sUserManager.getUsers(true)) {
                             if (userInfo.id == prebundledUserId) continue;
+                            if (DEBUG_PREBUNDLED_SCAN) Log.d(TAG,
+                                    "Marking for secondary user " + userInfo.id);
                             mSettings.markPrebundledPackageInstalledLPr(userInfo.id,
                                     pkg.packageName);
                         }
@@ -5986,15 +5996,17 @@ public class PackageManagerService extends IPackageManager.Stub {
         if ((parseFlags & PackageParser.PARSE_IS_PREBUNDLED_DIR) != 0) {
             synchronized (mPackages) {
                 PackageSetting existingSettings = mSettings.peekPackageLPr(pkg.packageName);
-                if (mSettings.wasPrebundledPackageInstalledLPr(user.getIdentifier()
-                        , pkg.packageName) && existingSettings == null) {
-                    // The prebundled app was installed at some point in time, but now it is
-                    // gone.  Assume that the user uninstalled it intentionally: do not reinstall.
+
+                if (!mSettings.shouldPrebundledPackageBeInstalledForUserLPr(existingSettings,
+                        user.getIdentifier(), pkg.packageName)) {
+                    // The prebundled app was installed at some point for the owner and isn't
+                    // currently installed for the owner, dont install it for a new user
+                    // OR the prebundled app was installed for the user at some point and isn't
+                    // current installed for the user, so skip reinstalling it
                     throw new PackageManagerException(INSTALL_FAILED_UNINSTALLED_PREBUNDLE,
                             "skip reinstall for " + pkg.packageName);
-                } else if (existingSettings == null &&
-                        !mSettings.shouldPrebundledPackageBeInstalled(mContext.getResources(),
-                                pkg.packageName, mCustomResources)) {
+                } else if (!mSettings.shouldPrebundledPackageBeInstalledForRegion(
+                        mContext.getResources(), pkg.packageName, mCustomResources)) {
                     // The prebundled app is not needed for the default mobile country code,
                     // skip installing it
                     throw new PackageManagerException(INSTALL_FAILED_REGION_LOCKED_PREBUNDLE,
@@ -8314,6 +8326,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         int pkgId;
         if ("android".equals(target)) {
             pkgId = Resources.THEME_FRAMEWORK_PKG_ID;
+        } else if ("cyanogenmod.platform".equals(target)) {
+            pkgId = Resources.THEME_CM_PKG_ID;
         } else if (isCommonResources) {
             pkgId = Resources.THEME_COMMON_PKG_ID;
         } else {
@@ -10225,10 +10239,10 @@ public class PackageManagerService extends IPackageManager.Stub {
 
     void startCleaningPackages() {
         // reader
+        if (!isExternalMediaAvailable()) {
+            return;
+        }
         synchronized (mPackages) {
-            if (!isExternalMediaAvailable()) {
-                return;
-            }
             if (mSettings.mPackagesToBeCleaned.isEmpty()) {
                 return;
             }
@@ -17255,10 +17269,12 @@ public class PackageManagerService extends IPackageManager.Stub {
     }
 
     @Override
-    public boolean isComponentProtected(String callingPackage,
+    public boolean isComponentProtected(String callingPackage, int callingUid,
             ComponentName componentName, int userId) {
         if (DEBUG_PROTECTED) Log.d(TAG, "Checking if component is protected "
-                + componentName.flattenToShortString() + " from calling package " + callingPackage);
+                + componentName.flattenToShortString() + " from calling package " + callingPackage
+                + " and callinguid " + callingUid);
+
         enforceCrossUserPermission(Binder.getCallingUid(), userId, false, false, "set protected");
 
         //Allow managers full access
@@ -17279,8 +17295,24 @@ public class PackageManagerService extends IPackageManager.Stub {
             return false;
         }
 
+        //If this component is launched from a validation component, allow it.
         if (TextUtils.equals(PROTECTED_APPS_TARGET_VALIDATION_COMPONENT,
-                componentName.flattenToString())) {
+                componentName.flattenToString()) && callingUid == Process.SYSTEM_UID) {
+            return false;
+        }
+
+        //If this component is launched from the system or a uid of a protected component, allow it.
+        boolean fromProtectedComponentUid = false;
+        for (String protectedComponentManager : protectedComponentManagers) {
+            int packageUid = getPackageUid(protectedComponentManager, userId);
+            if (packageUid != -1 && callingUid == packageUid) {
+                fromProtectedComponentUid = true;
+            }
+        }
+
+        if (TextUtils.equals(callingPackage, "android") && callingUid == Process.SYSTEM_UID
+                || callingPackage == null && fromProtectedComponentUid) {
+            if (DEBUG_PROTECTED) Log.d(TAG, "Calling package is android or manager, allow");
             return false;
         }
 
@@ -17290,14 +17322,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         synchronized (mPackages) {
             pkgSetting = mSettings.mPackages.get(packageName);
 
-            if (pkgSetting == null) {
-                if (className == null) {
-                    throw new IllegalArgumentException(
-                            "Unknown package: " + packageName);
-                }
-                throw new IllegalArgumentException(
-                        "Unknown component: " + packageName
-                                + "/" + className);
+            if (pkgSetting == null || className == null) {
+                return false;
             }
             // Get all the protected components
             components = pkgSetting.getProtectedComponents(userId);
@@ -17872,6 +17898,8 @@ public class PackageManagerService extends IPackageManager.Stub {
         for (String themePkgName : themesToProcess) {
             processThemeResources(themePkgName);
         }
+
+        updateIconMapping(themeConfig.getIconPackPkgName());
     }
 
     private void createAndSetCustomResources() {
