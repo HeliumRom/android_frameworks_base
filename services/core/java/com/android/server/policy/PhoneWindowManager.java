@@ -26,6 +26,7 @@ import android.app.KeyguardManager;
 import android.app.ProgressDialog;
 import android.app.SearchManager;
 import android.app.StatusBarManager;
+import android.app.SudaModDialog;
 import android.app.UiModeManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
@@ -7016,7 +7017,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         screenTurnedOn();
     }
 
-    ProgressDialog mBootMsgDialog = null;
+    SudaModDialog mBootMsgDialog = null;
 
     /** {@inheritDoc} */
     @Override
